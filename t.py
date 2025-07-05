@@ -1,6 +1,7 @@
 import argparse
 import sys
 import csv
+from abc import ABC, abstractmethod
 
 # Парсинг CLI
 ARGUMENT_DEFINITIONS = {
@@ -38,21 +39,31 @@ class CLIArgumentsDispatcher:
         for flag, params in ARGUMENT_DEFINITIONS.items():
             parser.add_argument(flag, **params)
         args = parser.parse_args()
+        csv_obj = CSVParser.parse(args.file)
+        print(csv_obj)
         print(f"DBG. Переданные аргументы: {vars(args)}")
         return args
     
 # Парсинг csv-файла
 class CSVParser:
-    """Парсер csv-файла. Считывает данные из файла и возвращает их в виде списка словарей."""
-    def __init__(self, file_path):
-        self.file_path = file_path
-
-    def parse(self):        
-        with open(self.file_path, mode='r', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile)
-            return [row for row in reader]
+    """Парсер csv-файла с автодетекцией диалекта. Возвращает данные в виде списка словарей."""
+    @staticmethod
+    def parse(file_path):        
+        with open(file_path, mode='r', encoding='utf-8') as csvfile:
+            # Читаем небольшой образец для определения диалекта
+            sample = csvfile.readline()
+            csvfile.seek(0)
+            dialect = csv.Sniffer().sniff(sample)
+            # Парсим файл с обнаруженным диалектом
+            reader = csv.DictReader(csvfile, dialect=dialect)
+            return list(reader)
 
 # Команды фильтрации, агрегации и прочего
+class Command(ABC):
+    @abstractmethod
+    def execute(self):
+        pass
+
 class CommandRegistry:
     """Реестр команд. Регистрируем классы-команд, обрабатывающие csv-файлы. 
     (Для удобного расширения функционала)"""
