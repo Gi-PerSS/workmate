@@ -1,7 +1,10 @@
 import argparse
 import sys
 import csv
-from abc import ABC, abstractmethod
+from tabulate import tabulate
+
+
+
 
 # Парсинг CLI
 ARGUMENT_DEFINITIONS = {
@@ -27,7 +30,6 @@ ARGUMENT_DEFINITIONS = {
     }
 }
 
-aggregate_cases = ['min', 'max', 'avg', 'median']
 
 class CLIArgumentParser(argparse.ArgumentParser):
     """Переопределяем стандартный парсер для вывода хелпа в случае неадеквата поданных аргументов."""
@@ -39,18 +41,18 @@ class CLIArgumentParser(argparse.ArgumentParser):
     
 # Парсинг csv-файла
 class CSVParser:
-    """Парсер csv-файла с автодетекцией диалекта. Возвращает данные в виде списка словарей."""
+    """Парсер csv-файла. Возвращает данные в виде списка словарей."""
     @staticmethod
     def parse(file_path):        
         with open(file_path, mode='r', encoding='utf-8') as csvfile:
             return list(csv.DictReader(csvfile)) 
         
 # Парсинг выражений
-OPERATORS = ['!=', '>=', '<=', '=', '>', '<'] # Порядок операторов важен.
+
 
 class ExpressionParser:
     @staticmethod
-    def detect_data_type(data_string):
+    def convert_to_number_if_possible(data_string):
         try:
             value = int(data_string)
         except ValueError:
@@ -62,43 +64,42 @@ class ExpressionParser:
 
     @staticmethod
     def parse_expression(row):
+        OPERATORS = ['!=', '>=', '<=', '=', '>', '<'] # Порядок операторов важен.
         for op in OPERATORS:
             if op in row:
                 parts = row.split(op, 1)
                 left_hand = parts[0].strip()
-                right_hand = ExpressionParser.detect_data_type(parts[1].strip())
+                right_hand = ExpressionParser.convert_to_number_if_possible(parts[1].strip())
                 return (left_hand, op, right_hand) 
         raise ValueError(f"Не найден оператор в выражении: {row}")
         
-
-
 # Диспетчер коллбеков
 class CLIArgumentsDispatcher:
     @staticmethod
     def processor_pipeline(csv_obj, args):
-        """Метод последовательно вызывает исполнение команд, согласно содержимому args"""
-        data = csv_obj 
-        for command in ARGUMENT_DEFINITIONS.keys():
-            if command == 'file':
-                continue
-            if command == 'where':
-               expression = ExpressionParser.parse_expression(args.where)
-               command_class = CommandRegistry.get_command('Where')
-               data = command_class().execute(csv_obj, expression)
-            elif command == 'aggregate':
-                pass
-            elif command == 'order-by':
-                pass
-            else: 
-                raise ValueError(f"Неизвестная команда: {command}")
+
+        data = csv_obj
+        args_dict = vars(args) 
         
-         # Выводим результат
+        # Порядок обработки важен: where -> order_by -> aggregate
+        if args_dict.get('where'):
+            expression = ExpressionParser.parse_expression(args.where)
+            data = Where.execute(data, expression)
+        
+        if args_dict.get('order_by'):  # argparse автоматом заменяет дефис из аругментов на _
+            pass
+        
+        if args_dict.get('aggregate'):            
+            expression = ExpressionParser.parse_expression(args.aggregate)
+            _, _, aggregator_type = expression
+            data = {aggregator_type: [Aggregate.execute(data, expression)]}
+
+
+
+
+        # Вывод результатов
         if data:
-            # Выводим заголовки
-            print("\t".join(data[0].keys()))
-            # Выводим данные
-            for row in data:
-                print("\t".join(str(value) for value in row.values()))
+            print(tabulate(data, headers="keys", tablefmt="github"))
         else:
             print("Нет данных, соответствующих условиям")
         
@@ -115,72 +116,114 @@ class CLIArgumentsDispatcher:
         return args
 
 
+
+class Aggregate:
+    """АЛгоритм. Константы с возможными значениями. Для каждой свой case и цикл прохода по столбцу."""
+    def execute(csv_obj, expression):
+        field, _, aggregator_type = expression
+        match aggregator_type:
+            case 'min': return Aggregate._agr_min(csv_obj, field)
+            case 'max': return Aggregate._agr_max(csv_obj, field)
+            case 'avg': return Aggregate._agr_avg(csv_obj, field)
+            case 'median': return Aggregate._agr_median(csv_obj, field)
+            case _: raise ValueError(f"Неизвестный тип агрегации: {aggregator_type}")
+
+    @staticmethod
+    def convert_float_to_int_if_necessary(value):
+        """Преобразует результат в int если это целое число, иначе оставляет float"""
+        if isinstance(value, (int, float)) and value == int(value):
+            return int(value)
+        return value
+    
+    @staticmethod
+    def _agr_min(csv_obj, field):
+        min_value = float('inf') 
+        for row in csv_obj:
+            actual_value = ExpressionParser.convert_to_number_if_possible(row.get(field))
+            if isinstance(actual_value, str):
+                raise ValueError("Агрегация для строк не предусмотрена")
+            min_value = min(min_value, actual_value)
+        return Aggregate.convert_float_to_int_if_necessary(min_value)
+    
+    @staticmethod
+    def _agr_max(csv_obj, field):
+        max_value = float('-inf') 
+        for row in csv_obj:
+            actual_value = ExpressionParser.convert_to_number_if_possible(row.get(field))
+            if isinstance(actual_value, str):
+                raise ValueError("Агрегация для строк не предусмотрена")
+            if actual_value > max_value:
+                max_value = actual_value
+        return Aggregate.convert_float_to_int_if_necessary(max_value)
+
+    @staticmethod
+    def _agr_avg(csv_obj, field):
+        if not csv_obj:
+            return 0
+            
+        total = 0
+        for row in csv_obj:
+            actual_value = ExpressionParser.convert_to_number_if_possible(row.get(field))
+            if isinstance(actual_value, str):
+                raise ValueError("Агрегация для строк не предусмотрена")
+            total += actual_value
         
-# Команды фильтрации, агрегации и прочего
-class CommandRegistry:
-    """Реестр команд. Регистрируем классы-команд, обрабатывающие csv-файлы. 
-    (Для удобного расширения функционала)"""
-    _registry = {}
-
-    @classmethod    
-    def register(cls, command):
-        """На вход принимается команда, так, как она задана в командной строке.
-        Возвращает декоратор, который регистрирует функцию в реестре команд."""
-        def decorator(func):
-            cls._registry[command] = func
-            return func
-        return decorator
-
-    @classmethod
-    def get_command(cls, command):
-        return cls._registry.get(command)
+        avg = total /len(csv_obj)
+        return Aggregate.convert_float_to_int_if_necessary(avg)
+    
+    @staticmethod
+    def _agr_median(csv_obj, field):
+        """Медиана - это среднее значение в отсортированном списке. Для четного числа элементов - 
+        среднее двух средних элементов."""
+        values = []
+        for row in csv_obj:
+            actual_value = ExpressionParser.convert_to_number_if_possible(row.get(field))
+            if isinstance(actual_value, str):
+                raise ValueError("Агрегация для строк не предусмотрена")
+            values.append(actual_value)
+        
+        if not values:
+            return 0
+            
+        values.sort()
+        n = len(values)
+        if n % 2 == 1:
+            median = values[n//2]
+        else:
+            median = (values[n//2 - 1] + values[n//2]) / 2
+            
+        return Aggregate.convert_float_to_int_if_necessary(median)
     
 
-class Command(ABC):
-    @abstractmethod
-    def execute(self):
-        pass
 
-# @CommandRegistry.register('Aggregate')
-# class Aggregate(Command):
-#     """АЛгоритм. Константы с возможными значениями. Для каждой свой case и цикл прохода по столбцу."""
-#     def execute(self):
-#         field, operator, expected_value = expression
-#         filtered_rows = []
-
-#     _agr_min(self, )
-
-#     match aggregator_type:
-#         case 'min': pass
-#         case 'max': pass
-#         case 'avg': pass
-#         case 'median': pass
-
-
-@CommandRegistry.register('Where')
-class Where(Command):
-    def execute(self, csv_obj, expression):
+class Where:
+    @staticmethod
+    def execute(csv_obj, expression):
         field, operator, expected_value = expression
         filtered_rows = []
         
+        # Проходим по списку словарей и проверяем значение поля в каждой строке на соответствие условию.
         for row in csv_obj:
             field_value = row.get(field)
             if field_value is None:
                 continue
-            
-            field_value = ExpressionParser.detect_data_type(field_value)
+
+            # Конвертируем значение поля в число, если это возможно, для сравнения с заданным значением.
+            field_value = ExpressionParser.convert_to_number_if_possible(field_value)
             
             # Нормализация строк (если оба значения - строки)
             if isinstance(field_value, str) and isinstance(expected_value, str):
                 field_value = field_value.strip().lower()
                 expected_value = expected_value.strip().lower()
-            
-            if self._compare_values(field_value, operator, expected_value):
+
+            # Если условие соблюдается, добавляем строку в вывод
+            if Where._compare_values(field_value, operator, expected_value):
                 filtered_rows.append(row)
         
         return filtered_rows
-
-    def _compare_values(self, field_value, operator, expected_value):
+    
+    @staticmethod
+    def _compare_values(field_value, operator, expected_value):
         match operator:
             case '=': return field_value == expected_value
             case '!=': return field_value != expected_value
@@ -189,6 +232,12 @@ class Where(Command):
             case '>=': return field_value >= expected_value
             case '<=': return field_value <= expected_value
             case _: raise ValueError(f"Unsupported operator: {operator}")
+
+class OrderBy:
+    @staticmethod
+    def execute(csv_obj, field):
+        """Сортирует список словарей по указанному полю."""
+        return sorted(csv_obj, key=lambda x: x.get(field))
 
 if __name__ == "__main__":
     t = CLIArgumentsDispatcher()
