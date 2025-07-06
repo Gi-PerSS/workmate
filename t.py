@@ -48,8 +48,6 @@ class CSVParser:
             return list(csv.DictReader(csvfile)) 
         
 # Парсинг выражений
-
-
 class ExpressionParser:
     @staticmethod
     def convert_to_number_if_possible(data_string):
@@ -87,15 +85,13 @@ class CLIArgumentsDispatcher:
             data = Where.execute(data, expression)
         
         if args_dict.get('order_by'):  # argparse автоматом заменяет дефис из аругментов на _
-            pass
-        
-        if args_dict.get('aggregate'):            
+            expression = ExpressionParser.parse_expression(args.order_by)
+            data = OrderBy.execute(data, expression)
+
+        if args_dict.get('aggregate'):
             expression = ExpressionParser.parse_expression(args.aggregate)
             _, _, aggregator_type = expression
             data = {aggregator_type: [Aggregate.execute(data, expression)]}
-
-
-
 
         # Вывод результатов
         if data:
@@ -234,10 +230,41 @@ class Where:
             case _: raise ValueError(f"Unsupported operator: {operator}")
 
 class OrderBy:
+    """Класс для сортировки данных из CSV по указанному полю."""
+    
     @staticmethod
-    def execute(csv_obj, field):
-        """Сортирует список словарей по указанному полю."""
-        return sorted(csv_obj, key=lambda x: x.get(field))
+    def execute(data, expression):
+        """
+        Сортирует данные по заданному полю в указанном порядке.
+        
+        Параметры:
+            data: список словарей (например, [{'name': 'Alice', 'age': 30}, ...])
+            expression: кортеж из (поле, оператор, направление), например ('age', '=', 'asc')
+        
+        Возвращает:
+            Отсортированный список словарей
+        """
+        field, _, direction = expression  # Разбираем выражение на части
+        
+        # Проверяем, что направление сортировки корректное
+        if direction not in ('asc', 'desc'):
+            raise ValueError("Направление сортировки должно быть 'asc' или 'desc'")
+        
+        # Создаем копию данных, чтобы не менять исходный список
+        sorted_data = data.copy()
+        
+        # Функция для получения значения поля с конвертацией в число (если возможно)
+        def get_key(row):
+            value = row.get(field)
+            return ExpressionParser.convert_to_number_if_possible(value)
+        
+        # Сортируем данные
+        sorted_data.sort(
+            key=get_key,          # Ключ сортировки
+            reverse=(direction == 'desc')  # True для сортировки по убыванию
+        )
+        
+        return sorted_data
 
 if __name__ == "__main__":
     t = CLIArgumentsDispatcher()
