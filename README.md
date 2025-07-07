@@ -78,7 +78,7 @@ pytest --cov=project
 
 - Python 3.12+
 - Стандартные библиотеки: `argparse`, `csv`
-- Внешняя библиотека: `tabulate` (для вывода в консоль)
+- Внешняя библиотека: `tabulate`
 - Тестирование: `pytest`, `pytest-cov`
 
 ## Примечания
