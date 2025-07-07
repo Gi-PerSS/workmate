@@ -41,7 +41,7 @@
    ```bash
    pip install -r requirements.txt
    ```
-3. Наслаждайтесь!:
+3. Наслаждайтесь!
    ```bash
    python -m project.main --file sample/products.csv --where "price>500" --aggregate "price=avg"
    ```
