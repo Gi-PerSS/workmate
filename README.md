@@ -65,6 +65,10 @@
   ```bash
   python -m project.main --file sample/products.csv --where "brand=apple" --aggregate "price=max"
   ```
+- Расчет медианы (порог разделяющий 2 части упорядоченного списка):
+  ```bash
+  python -m project.main --file sample/products.csv --where "brand=apple" --aggregate "rating=median"
+  ```
 
 ## Запуск тестов
 
