@@ -79,3 +79,14 @@ pytest --cov=project
 - Стандартные библиотеки: `argparse`, `csv`
 - Внешняя библиотека: `tabulate` (для вывода в консоль)
 - Тестирование: `pytest`, `pytest-cov`
+
+## Примечания
+
+- диалекты csv не обрабатываются
+- поддерживается одна кодировка: utf-8
+- переустановка проекта:
+  ```bash
+  pip uninstall workmate
+  rm -rf build/ dist/ *.egg-info/
+  pip install -e .
+  ```
