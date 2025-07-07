@@ -39,6 +39,7 @@
    ```
 2. Установите зависимости:
    ```bash
+   pip install -e .
    pip install -r requirements.txt
    ```
 3. Наслаждайтесь!
