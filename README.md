@@ -35,7 +35,7 @@
 1. Клонируйте репозиторий:
    ```bash
    git clone https://github.com/Gi-PerSS/workmate
-   cd Workmate
+   cd workmate
    ```
 2. Установите зависимости:
    ```bash
