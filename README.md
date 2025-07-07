@@ -1,6 +1,6 @@
 # Workmate CSV Processor
 
-Тестовое задание от Workmate - скрипт на Python для обработки CSV-файлов.
+Тестовое задание для Workmate - скрипт на Python для обработки CSV-файлов.
 
 ## Возможности
 
