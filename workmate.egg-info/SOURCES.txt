@@ -1,0 +1,17 @@
+README.md
+setup.py
+project/__init__.py
+project/main.py
+project/controller/__init__.py
+project/controller/cli_parser.py
+project/controller/dispatcher.py
+project/model/__init__.py
+project/model/csv_parser.py
+project/model/processors.py
+project/model/util.py
+project/view/__init__.py
+project/view/results_printer.py
+workmate.egg-info/PKG-INFO
+workmate.egg-info/SOURCES.txt
+workmate.egg-info/dependency_links.txt
+workmate.egg-info/top_level.txt
